@@ -64,13 +64,13 @@ async def open_url(url: str | None) -> None:
         console.print(f"[red]File not found: {full_path}[/red]")
         raise click.Abort()
 
-    # Get IDA binary - try ke ida configuration first, then fallback to default
+    # Get IDA binary - try ida configuration first, then fallback to default
     ida_bin = None
 
-    # First try to use ke ida configuration
-    default_instance = config_store.get_string("ke.ida.default", "")
+    # First try to use ida configuration
+    default_instance = config_store.get_string("ida.default", "")
     if default_instance:
-        instances: dict[str, str] = config_store.get_object("ke.ida.instances", {}) or {}
+        instances: dict[str, str] = config_store.get_object("ida.instances", {}) or {}
         if default_instance in instances:
             ida_dir_path = Path(instances[default_instance])
             try:
@@ -87,7 +87,7 @@ async def open_url(url: str | None) -> None:
             ida_bin = get_ida_binary_path(ida_dir)
         except Exception as e:
             console.print(f"[red]IDA Pro not found: {e}[/red]")
-            console.print("[yellow]Consider registering IDA instances with 'hcli ke ida add --auto'[/yellow]")
+            console.print("[yellow]Consider registering IDA instances with 'hcli ida instance add --auto'[/yellow]")
             console.print(f"[yellow]URL resolution successful: {url} -> {full_path}[/yellow]")
             raise click.Abort()
 

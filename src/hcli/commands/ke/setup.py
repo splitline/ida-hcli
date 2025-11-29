@@ -61,15 +61,15 @@ async def setup(force: bool = False, unregister: bool = False) -> None:
 async def _check_and_setup_ida_instances() -> None:
     """Check for registered IDA instances and auto-discover if none exist."""
     # Check if any IDA instances are already registered
-    instances: dict[str, str] = config_store.get_object("ke.ida.instances", {}) or {}
+    instances: dict[str, str] = config_store.get_object("ida.instances", {}) or {}
 
     if instances:
         console.print(f"[green]✓ Found {len(instances)} registered IDA instance(s)[/green]")
-        default_instance = config_store.get_string("ke.ida.default", "")
+        default_instance = config_store.get_string("ida.default", "")
         if default_instance:
             console.print(f"[green]✓ Default IDA instance: {default_instance}[/green]")
         else:
-            console.print("[yellow]! No default IDA instance set. Use 'hcli ke ida switch' to set one.[/yellow]")
+            console.print("[yellow]! No default IDA instance set. Use 'hcli ida instance set-default' to set one.[/yellow]")
         return
 
     console.print("\n[blue]Checking for IDA Pro installations...[/blue]")
@@ -99,7 +99,7 @@ async def _check_and_setup_ida_instances() -> None:
             # Set the last one alphabetically as default if no default exists
             sorted_installations = sorted(valid_installations, key=lambda p: generate_instance_name(p))
             last_instance = generate_instance_name(sorted_installations[-1])
-            config_store.set_string("ke.ida.default", last_instance)
+            config_store.set_string("ida.default", last_instance)
             console.print(f"[green]✓ Set '{last_instance}' as default IDA instance[/green]")
         else:
             console.print("[yellow]! All discovered IDA instances were already registered[/yellow]")
@@ -119,7 +119,7 @@ async def install() -> None:
 def _print_ida_setup_instructions() -> None:
     """Print instructions for manually setting up IDA instances."""
     console.print("\n[yellow]To use ida:// links, you need to register IDA Pro instances:[/yellow]")
-    console.print("  • Auto-discover: [cyan]hcli ke ida add --auto[/cyan]")
-    console.print("  • Manual: [cyan]hcli ke ida add <name> <path>[/cyan]")
-    console.print("  • Example: [cyan]hcli ke ida add ida-pro '/Applications/IDA Professional 9.2.app'[/cyan]")
-    console.print("  • Set default: [cyan]hcli ke ida switch <name>[/cyan]")
+    console.print("  • Auto-discover: [cyan]hcli ida instance add --auto[/cyan]")
+    console.print("  • Manual: [cyan]hcli ida instance add <name> <path>[/cyan]")
+    console.print("  • Example: [cyan]hcli ida instance add ida-pro '/Applications/IDA Professional 9.2.app'[/cyan]")
+    console.print("  • Set default: [cyan]hcli ida instance set-default <name>[/cyan]")

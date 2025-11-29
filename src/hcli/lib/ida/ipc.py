@@ -36,6 +36,15 @@ class IDAInstance:
     has_idb: bool = False
 
 
+@dataclass
+class AnalysisResult:
+    """Result of wait_for_analysis command."""
+
+    success: bool  # True if analysis is complete
+    status: str  # "ok", "timeout", "cancelled", "error"
+    message: str | None = None
+
+
 class IDAIPCError(Exception):
     """Base exception for IDA IPC errors."""
 
@@ -241,15 +250,56 @@ class IDAIPCClient:
             return False, f"Unexpected error: {e}"
 
     @staticmethod
-    def _send_command(socket_path: str, command: dict) -> dict:
-        """Send a JSON command and receive response."""
-        if sys.platform == "win32":
-            return IDAIPCClient._send_command_windows(socket_path, command)
-        else:
-            return IDAIPCClient._send_command_unix(socket_path, command)
+    def wait_for_analysis(
+        socket_path: str, timeout_ms: int = 5000
+    ) -> AnalysisResult:
+        """Wait for IDA auto-analysis to complete.
+
+        Args:
+            socket_path: Path to the socket file or named pipe.
+            timeout_ms: Timeout in milliseconds for the wait (0 = wait forever).
+
+        Returns:
+            AnalysisResult with status and timing info.
+        """
+        try:
+            # Use a longer read timeout to account for the IPC command duration
+            read_timeout = (timeout_ms / 1000) + 10 if timeout_ms > 0 else 30.0
+            response = IDAIPCClient._send_command(
+                socket_path,
+                {"cmd": "wait_for_analysis", "timeout_ms": timeout_ms},
+                read_timeout=read_timeout,
+            )
+            return AnalysisResult(
+                success=response.get("status") == "ok",
+                status=response.get("status", "error"),
+                message=response.get("message"),
+            )
+        except IDAIPCError as e:
+            return AnalysisResult(
+                success=False,
+                status="error",
+                message=str(e),
+            )
 
     @staticmethod
-    def _send_command_unix(socket_path: str, command: dict) -> dict:
+    def _send_command(
+        socket_path: str, command: dict, read_timeout: float | None = None
+    ) -> dict:
+        """Send a JSON command and receive response."""
+        if sys.platform == "win32":
+            return IDAIPCClient._send_command_windows(
+                socket_path, command, read_timeout=read_timeout
+            )
+        else:
+            return IDAIPCClient._send_command_unix(
+                socket_path, command, read_timeout=read_timeout
+            )
+
+    @staticmethod
+    def _send_command_unix(
+        socket_path: str, command: dict, read_timeout: float | None = None
+    ) -> dict:
         """Send command via Unix domain socket."""
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(IDAIPCClient.CONNECT_TIMEOUT)
@@ -265,7 +315,7 @@ class IDAIPCClient:
             data = json.dumps(command).encode("utf-8")
             sock.sendall(data)
 
-            sock.settimeout(IDAIPCClient.READ_TIMEOUT)
+            sock.settimeout(read_timeout or IDAIPCClient.READ_TIMEOUT)
             response_data = b""
             while True:
                 try:
@@ -292,8 +342,12 @@ class IDAIPCClient:
             sock.close()
 
     @staticmethod
-    def _send_command_windows(pipe_path: str, command: dict) -> dict:
+    def _send_command_windows(
+        pipe_path: str, command: dict, read_timeout: float | None = None
+    ) -> dict:
         """Send command via Windows named pipe."""
+        # Note: read_timeout is accepted for API consistency but Windows pipes
+        # use blocking I/O by default
         try:
             import ctypes
             from ctypes import wintypes
