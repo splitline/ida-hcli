@@ -12,7 +12,7 @@ def register_commands(cli: click.Group) -> None:
     from .plugin import plugin
     from .update import update
     from .whoami import whoami
-    # placeholder for more commands
+    from .open_link import open_link, list_instances
 
     cli.add_command(login)
     cli.add_command(logout)
@@ -21,6 +21,8 @@ def register_commands(cli: click.Group) -> None:
     cli.add_command(download)
     cli.add_command(commands)
     cli.add_command(plugin)
+    cli.add_command(open_link)
+    cli.add_command(list_instances)
 
     # groups
     from .auth import auth
