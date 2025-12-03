@@ -84,7 +84,7 @@ def open_link(uri: str | None, list_instances: bool, no_launch: bool, timeout: f
     # Parse URL to extract IDB name
     parsed = urlparse(uri)
 
-    if parsed.scheme != "idb":
+    if parsed.scheme != "ida":
         console.print(f"[red]Error: Expected ida:// URL, got {parsed.scheme}://[/red]")
         raise click.Abort()
 
