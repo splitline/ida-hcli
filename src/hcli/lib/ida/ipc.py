@@ -5,7 +5,7 @@ send commands to them via local sockets (Unix domain sockets on Linux/macOS,
 named pipes on Windows).
 
 Protocol: JSON-based request/response
-  Request:  {"cmd": "ping|get_info|open_link", ...}
+  Request:  {"cmd": "ping|get_info|open_link|is_analysis_complete", ...}
   Response: {"status": "ok|error", ...}
 
 Socket naming: ida_ipc_<pid> (e.g., ida_ipc_12345)
@@ -250,28 +250,28 @@ class IDAIPCClient:
             return False, f"Unexpected error: {e}"
 
     @staticmethod
-    def wait_for_analysis(
-        socket_path: str, timeout_ms: int = 5000
-    ) -> AnalysisResult:
-        """Wait for IDA auto-analysis to complete.
+    def is_analysis_complete(socket_path: str) -> AnalysisResult:
+        """Check if IDA auto-analysis is complete (non-blocking).
 
         Args:
             socket_path: Path to the socket file or named pipe.
-            timeout_ms: Timeout in milliseconds for the wait (0 = wait forever).
 
         Returns:
-            AnalysisResult with status and timing info.
+            AnalysisResult with success=True if analysis is complete,
+            success=False if still in progress or error.
         """
         try:
-            # Use a longer read timeout to account for the IPC command duration
-            read_timeout = (timeout_ms / 1000) + 10 if timeout_ms > 0 else 30.0
             response = IDAIPCClient._send_command(
-                socket_path,
-                {"cmd": "wait_for_analysis", "timeout_ms": timeout_ms},
-                read_timeout=read_timeout,
+                socket_path, {"cmd": "is_analysis_complete"}
             )
+            if response.get("status") == "ok":
+                return AnalysisResult(
+                    success=response.get("analysis_complete", False),
+                    status="ok",
+                    message=None,
+                )
             return AnalysisResult(
-                success=response.get("status") == "ok",
+                success=False,
                 status=response.get("status", "error"),
                 message=response.get("message"),
             )

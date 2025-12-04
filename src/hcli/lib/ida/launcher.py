@@ -345,12 +345,11 @@ class IDALauncher:
         socket_path: str,
         progress_callback: Callable[[str], None] | None = None,
     ) -> None:
-        """Wait for auto-analysis to complete with cancel support.
+        """Wait for auto-analysis to complete by polling.
 
-        Uses IDA's native auto_wait() via timeout_ms=0, with periodic
-        process health checks. User can cancel with Ctrl+C.
+        Polls is_analysis_complete at regular intervals with process health
+        checks. User can cancel with Ctrl+C.
         """
-        poll_ms = int(self.config.analysis_poll_interval * 1000)
         start = time.monotonic()
 
         while True:
@@ -361,8 +360,7 @@ class IDALauncher:
                     f"IDA exited unexpectedly with code {exit_code}", exit_code=exit_code
                 )
 
-            # Use short timeout to allow Ctrl+C and process health checks
-            result = IDAIPCClient.wait_for_analysis(socket_path, timeout_ms=poll_ms)
+            result = IDAIPCClient.is_analysis_complete(socket_path)
 
             if result.success:
                 elapsed = time.monotonic() - start
@@ -370,18 +368,15 @@ class IDALauncher:
                     progress_callback(f"Analysis complete ({elapsed:.1f}s)")
                 return
 
-            if result.status == "cancelled":
-                raise IDALaunchError("Analysis cancelled by user in IDA")
+            if result.status == "error":
+                raise IDALaunchError(f"Analysis check error: {result.message}")
 
-            if result.status == "timeout":
-                # Analysis still in progress, print progress and continue
-                elapsed = time.monotonic() - start
-                if progress_callback:
-                    progress_callback(f"Waiting for analysis... ({elapsed:.0f}s)")
-                continue
+            # Not complete yet, sleep and retry
+            elapsed = time.monotonic() - start
+            if progress_callback:
+                progress_callback(f"Waiting for analysis... ({elapsed:.0f}s)")
 
-            # Error status
-            raise IDALaunchError(f"Analysis error: {result.message}")
+            time.sleep(self.config.analysis_poll_interval)
 
     def _wait_for_idb_instance(self, idb_name: str, timeout: float) -> IDAInstance:
         """Wait for an IDA instance with the specified IDB to appear.
@@ -412,16 +407,15 @@ class IDALauncher:
         socket_path: str,
         progress_callback: Callable[[str], None] | None = None,
     ) -> None:
-        """Wait for auto-analysis to complete on a known instance.
+        """Wait for auto-analysis to complete by polling.
 
         Similar to _wait_for_analysis but without process health checks
         (used when we launched via 'open -a' and don't have a process handle).
         """
-        poll_ms = int(self.config.analysis_poll_interval * 1000)
         start = time.monotonic()
 
         while True:
-            result = IDAIPCClient.wait_for_analysis(socket_path, timeout_ms=poll_ms)
+            result = IDAIPCClient.is_analysis_complete(socket_path)
 
             if result.success:
                 elapsed = time.monotonic() - start
@@ -429,14 +423,12 @@ class IDALauncher:
                     progress_callback(f"Analysis complete ({elapsed:.1f}s)")
                 return
 
-            if result.status == "cancelled":
-                raise IDALaunchError("Analysis cancelled by user in IDA")
+            if result.status == "error":
+                raise IDALaunchError(f"Analysis check error: {result.message}")
 
-            if result.status == "timeout":
-                elapsed = time.monotonic() - start
-                if progress_callback:
-                    progress_callback(f"Waiting for analysis... ({elapsed:.0f}s)")
-                continue
+            # Not complete yet, sleep and retry
+            elapsed = time.monotonic() - start
+            if progress_callback:
+                progress_callback(f"Waiting for analysis... ({elapsed:.0f}s)")
 
-            # Error status - IDA may have closed
-            raise IDALaunchError(f"Analysis error: {result.message}")
+            time.sleep(self.config.analysis_poll_interval)
